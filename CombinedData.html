@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Data Visualization Combined</title>
+    <script src="https://d3js.org/d3-collection.v1.min.js"></script>
+    <script src="https://d3js.org/d3-dispatch.v1.min.js"></script>
+    <script src="https://d3js.org/d3-request.v1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/d3-selection@3"></script>
+    <script src="https://cdn.jsdelivr.net/npm/d3-dsv@3"></script>
+    <script src="https://d3js.org/d3.v4.js"></script>
+    <script src="https://d3js.org/d3-scale-chromatic.v1.min.js"></script>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        body {
+            display: flex;
+        }
+
+        .container {
+            width: 50%;
+        }
+
+        table {
+            font-size: 12px;
+        }
+
+        th,
+        td {
+            padding: 4px 8px;
+        }
+
+        .axis text {
+            font-size: 10px;
+            fill: #333;
+        }
+
+        .axis path,
+        .axis line {
+            fill: none;
+            stroke: #999;
+            shape-rendering: crispEdges;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>TABLE</h1>
+        <div id="part1"></div>
+    </div>
+    <div class="container">
+        <h1>MultiLine Graph</h1>
+        <div id="part2"></div>
+    </div>
+
+    <script>
+        // Part 1 script
+        d3.csv("https://raw.githubusercontent.com/Sandeep1349/DataViz-MultiLine/main/data_sample.csv")
+            .mimeType("text/csv")
+            .response(function (xhr) { return d3.csvParse(xhr.responseText); })
+            .get(function (data) {
+                var columns = ["date", "EstimatedCost", "RawMaterial", "Workmanship", "StorageCost", "ActualCost", "SoldPrice", "MarginOfProfit"];
+                createTable(calculateMarginofProfit(data), columns, '#part1');
+        });
+
+        var calculateMarginofProfit = (data) => {
+            data.forEach(row => {
+                row.StorageCost = (parseInt(row.StorageCost));
+                row.ActualCost = parseInt(row.RawMaterial) + parseInt(row.Workmanship) + parseInt(row.StorageCost);
+                row.SoldPrice = (parseInt(row.EstimatedCost) * 1.1).toFixed(2);
+                row.MarginOfProfit = (parseInt(row.SoldPrice) - parseInt(row.ActualCost)).toFixed(2);
+            });
+            return data;
+        };
+
+        var createTable = function (data, columns, target) {
+            var table = d3.select(target).append('table');
+            var thead = table.append('thead');
+            var tbody = table.append('tbody');
+
+            thead.append('tr')
+                .selectAll('th')
+                .data(columns)
+                .enter()
+                .append('th')
+                .text(function (d) { return d.toUpperCase(); });
+
+            var rows = tbody.selectAll('tr')
+                .data(data)
+                .enter()
+                .append('tr');
+
+            var cells = rows.selectAll('td')
+                .data(function (row) {
+                    return columns.map(function (column) {
+                        return { column: column, value: row[column] };
+                    });
+                })
+                .enter()
+                .append('td')
+                .text(function (d) { return d.value; });
+
+            return table;
+        };
+
+        // Part 2 script
+        var margin = { top: 40, right: 150, bottom: 50, left: 100 },
+            width = 800 - margin.left - margin.right,
+            height = 600 - margin.top - margin.bottom;
+
+        var svg = d3.select("#part2")
+            .append("svg")
+            .attr("width", width + margin.left + margin.right)
+            .attr("height", height + margin.top + margin.bottom)
+            .append("g")
+            .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+        d3.csv("https://raw.githubusercontent.com/Sandeep1349/DataViz-MultiLine/main/data_sample.csv", function (data) {
+            var col_groups = ["EstimatedCost", "RawMaterial", "Workmanship", "StorageCost"];
+
+            data.forEach(function(d) {
+                d.RawMaterial = +d.RawMaterial;
+                d.Workmanship = +d.Workmanship;
+                d.StorageCost = +d.StorageCost;
+                d.ActualCost = d.RawMaterial + d.Workmanship + d.StorageCost;
+                d.SoldPrice = d.EstimatedCost * 1.1;
+                d.MarginOfProfit = d.SoldPrice - d.ActualCost;
+            });
+
+            var formatted_data = ["EstimatedCost", "ActualCost", "SoldPrice", "MarginOfProfit"].map(function(group_name) {
+                return {
+                    name: group_name,
+                    values: data.map(function(d) {
+                        return { time: new Date(d.date), value: +d[group_name] };
+                    })
+                };
+            });
+
+            var myColor = d3.scaleOrdinal()
+                .domain(["EstimatedCost", "ActualCost", "SoldPrice", "MarginOfProfit"])
+                .range(d3.schemeCategory10);
+
+            var x = d3.scaleTime()
+                .domain([new Date('2019-01-01'), new Date('2020-09-01')])
+                .range([0, width]);
+
+            svg.append("g")
+                .attr("transform", "translate(0," + height + ")")
+                .call(d3.axisBottom(x)
+                    .ticks(10)
+                    .tickFormat(d3.timeFormat("%b %y")).tickValues(data.map(d => new Date(d.date))));
+
+            var legend = svg.selectAll(".legend")
+                .data(formatted_data)
+                .enter()
+                .append("g")
+                .attr("class", "legend")
+                .attr("transform", function(d, i) { return "translate(" + (width + 10) + "," + (i * 20 + 10) + ")"; });
+
+            legend.append("rect")
+                .attr("x", 0)
+                .attr("width", 12)
+                .attr("height", 12)
+                .style("fill", function(d) { return myColor(d.name); });
+
+            legend.append("text")
+                .attr("x", 20)
+                .attr("y", 9)
+                .attr("dy", ".12em")
+                .style("text-anchor", "start")
+                .text(function(d) { return d.name; });
+
+            var y = d3.scaleLinear()
+                .domain([d3.min(data, function(d) {
+                    return Math.min(0, d.EstimatedCost, d.ActualCost, d.SoldPrice, d.MarginOfProfit);
+                }), d3.max(data, function(d) {
+                    return Math.max(d.EstimatedCost, d.ActualCost, d.SoldPrice, d.MarginOfProfit);
+                })])
+                .range([height, 0]);
+
+            svg.append("g")
+                .call(d3.axisLeft(y)
+                    .ticks(20)
+                    .tickFormat(d3.format(".2f")));
+
+            var line = d3.line()
+                .x(function (d) { return x(+d.time); })
+                .y(function (d) { return y(+d.value); });
+
+            svg.selectAll("myLines")
+                .data(formatted_data)
+                .enter()
+                .append("path")
+                .attr("d", function (d) { return line(d.values); })
+                .attr("stroke", function (d) { return myColor(d.name); })
+                .style("stroke-width", 4)
+                .style("fill", "none");
+
+            svg.selectAll("myDots")
+                .data(formatted_data)
+                .enter()
+                .append('g')
+                .style("fill", function (d) { return myColor(d.name); })
+                .selectAll("myPoints")
+                .data(function (d) { return d.values; })
+                .enter()
+                .append("circle")
+                .attr("cx", function (d) { return x(d.time); })
+                .attr("cy", function (d) { return y(d.value); })
+                .attr("r", 5)
+                .attr("stroke", "white");
+
+            svg.selectAll("myLabels")
+                .data(formatted_data)
+                .enter()
+                .append('g')
+                .append("text")
+                .datum(function (d) { return { name: d.name, value: d.values[d.values.length - 1] }; })
+                .attr("transform", function (d) { return "translate(" + x(d.value.time) + "," + y(d.value.value) + ")"; })
+                .attr("x", 12)
+                .text(function (d) { return d.name; })
+                .style("fill", function (d) { return myColor(d.name); })
+                .style("font-size", 15);
+
+        })
+
+        var mySVG = document.getElementById('svg');
+        mySVG.setAttribute("viewBox", "0 0 1000 800");
+    </script>
+</body>
+
+</html>
